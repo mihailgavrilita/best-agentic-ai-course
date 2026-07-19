@@ -1,0 +1,9 @@
+
+# BEST Agentic AI Course — local secrets & caches
+notebooks/.env
+notebooks/__pycache__/
+notebooks/.ipynb_checkpoints/
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+.env

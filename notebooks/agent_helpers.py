@@ -10,6 +10,7 @@ Provides:
     mock_llm: Canned response for offline/API-failure use
     mock_search: Predefined search results
     make_tool: Tool definition factory
+    safe_calc: Safe arithmetic evaluator (use instead of eval)
 """
 
 import inspect
@@ -191,6 +192,46 @@ def mock_search(query: str, results: list[str] | None = None) -> str:
     hits = results or default
     return "\n".join(hits[:3])
 
+
+
+def safe_calc(expr: str) -> str:
+    """Safely evaluate arithmetic expressions without using eval().
+
+    Supports: +, -, *, /, **, %, unary minus/plus, integer and float literals.
+    Use this instead of eval() for calculator tools — eval() allows arbitrary
+    code execution which is a security risk in agentic systems.
+    """
+    import ast as _ast
+    import operator as _op
+    _ops = {
+        _ast.Add: _op.add, _ast.Sub: _op.sub,
+        _ast.Mult: _op.mul, _ast.Div: _op.truediv,
+        _ast.Pow: _op.pow, _ast.Mod: _op.mod,
+        _ast.USub: _op.neg, _ast.UAdd: _op.pos,
+    }
+    def _ev(n):
+        if isinstance(n, _ast.Constant):
+            if not isinstance(n.value, (int, float)):
+                raise ValueError("Only numeric literals allowed")
+            return n.value
+        if isinstance(n, _ast.BinOp):
+            fn = _ops.get(type(n.op))
+            if fn is None:
+                raise ValueError(f"Unsupported operator: {type(n.op).__name__}")
+            return fn(_ev(n.left), _ev(n.right))
+        if isinstance(n, _ast.UnaryOp):
+            fn = _ops.get(type(n.op))
+            if fn is None:
+                raise ValueError(f"Unsupported operator: {type(n.op).__name__}")
+            return fn(_ev(n.operand))
+        raise ValueError(f"Unsupported expression: {type(n).__name__}")
+    try:
+        result = _ev(_ast.parse(expr.strip(), mode="eval").body)
+        if isinstance(result, float) and result.is_integer():
+            return str(int(result))
+        return str(result)
+    except Exception as e:
+        return f"Error: {e}"
 
 def make_tool(name: str, description: str, fn: Callable) -> dict:
     return {"name": name, "description": description, "fn": fn}
